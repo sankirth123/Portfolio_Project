@@ -1,0 +1,13 @@
+Date,Product,Quantity,Sales
+01-01-2023,Product A,5,50
+01-01-2023,Product B,2,40
+02-01-2023,Product A,7,70
+02-01-2023,Product C,3,90
+02-01-2023,Product A,,70
+02-01-2023,Product C,3,
+03-01-2023,Product B,4,80
+03-01-2023,Product C,2,60
+04-01-2023,Product A,1,10
+04-01-2023,Product B,1,20
+04-01-2023,Product A,2,
+04-01-2023,Product B,3,20
