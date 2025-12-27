@@ -341,3 +341,185 @@ SELECT *
 FROM Core.Products
 WHERE ProductEndDate < ProductStartDate
 
+
+/*
+Checking for NULL or Duplicates,Validating ROW count
+Primary should be unique
+*/
+
+
+SELECT 
+cst_id, 
+COUNT(*) 
+FROM Staging.Customers
+GROUP BY cst_id
+HAVING COUNT(*) > 1 OR cst_id IS NULL
+
+
+
+----Quality check & checking data not shifted and is in correct column
+----Validating ROW count
+SELECT * FROM Staging.Products;
+
+SELECT COUNT(*) FROM Staging.Products;
+
+----Quality check & checking data not shifted and is in correct column
+----Validating ROW count
+SELECT * FROM Staging.Sales;
+SELECT COUNT(*) FROM Staging.Sales;
+
+ /* 
+ Checking for unwanted spaces
+ If Original Value Not Equal to same value after trimming,
+ Means there are spaces
+ */
+
+SELECT cst_firstname
+FROM Staging.Customers
+WHERE cst_firstname != TRIM(cst_firstname)
+
+SELECT cst_lastname
+FROM Staging.Customers
+WHERE cst_lastname != TRIM(cst_lastname)
+
+SELECT cst_marital_status
+FROM Staging.Customers
+WHERE cst_marital_status != TRIM(cst_marital_status)
+
+SELECT cst_gndr
+FROM Staging.Customers
+WHERE cst_gndr != TRIM(cst_gndr)
+
+---===============================  INSERT DATA FROM STAGING.Customers TO CORE.Customers  ====================
+
+
+INSERT INTO Core.Customers
+    (
+        CustomerID,
+        CustomerKey,
+        CustomerFirstName,
+        CustomerLastName,
+        CustomerMaritalStatus,
+        CustomerGender,
+        CustomerCreateDate
+    )
+
+
+--Row_Number : Assign a uninque number to each row in a resultset, based on defined order
+-- Checking unwanted spaces and TRI M 
+SELECT 
+        TRY_CAST(cst_id AS INT)     AS CustomerID,
+        cst_key                     AS CustomerKey,
+        TRIM(cst_firstname)         AS CustomerFirstName,
+        TRIM(cst_lastname)          AS CustomerLastName,
+    
+    
+        CASE 
+            WHEN UPPER(TRIM(cst_marital_status)) = 'S' THEN 'Single'
+            WHEN UPPER(TRIM(cst_marital_status)) = 'M' THEN 'Married'
+            ELSE 'N/A'
+        END                         AS CustomerMaritalStatus,
+
+
+        CASE 
+            WHEN UPPER(TRIM(cst_gndr)) = 'F' THEN 'FEMALE'
+            WHEN UPPER(TRIM(cst_gndr)) = 'M' THEN 'MALE'
+            ELSE 'N/A'
+        END                         AS CustomerGender,
+
+
+        TRY_CAST(cst_create_date AS DATE) AS CustomerCreateDate
+FROM
+(
+    SELECT
+    *,
+    ROW_NUMBER() OVER (PARTITION BY cst_id ORDER BY cst_create_date DESC) as flag_last
+    FROM Staging.Customers
+) t
+
+WHERE flag_last = 1
+AND TRY_CAST(cst_id AS INT) IS NOT NULL       -- prevents PK NULL error
+
+
+SELECT * FROM 
+Core.Customers
+
+
+
+
+---=================================== INSERT DATA FROM STAGING.Products TO CORE.Products  ====================
+
+INSERT INTO Core.Products(
+	ProductID, 
+	ProductKey,	
+	ProductName, 
+	ProdutCost,
+	ProductCategory, 
+	ProductStartDate, 
+	ProductEndDate 
+)
+
+SELECT 
+
+	TRY_CAST(prd_id AS INT) AS ProductID,
+
+	SUBSTRING(prd_key, 7, LEN(prd_key)) AS ProductKey,
+
+	prd_nm AS ProductName,	
+
+	TRY_CAST(NULLIF(prd_cost, '') AS DECIMAL(10,2)) AS ProdutCost,
+	
+
+	CASE WHEN UPPER(TRIM(prd_line)) = 'M' THEN 'Mountain'
+		 WHEN UPPER(TRIM(prd_line)) = 'R' THEN 'Road'
+		 WHEN UPPER(TRIM(prd_line)) = 'S' THEN 'Other Sales'
+		 WHEN UPPER(TRIM(prd_line)) = 'T' THEN 'Touring'
+		 ELSE 'n/a'
+	END AS ProductCategory,
+
+---Formatted start_dt
+	CONVERT(VARCHAR(10), TRY_CAST(prd_start_dt AS DATE), 103) AS ProductStartDate,
+	
+---Formatted end_dt
+	CONVERT(
+	VARCHAR(10), 
+	DATEADD(
+		DAY,
+		-1,
+	LEAD(TRY_CAST(prd_start_dt AS DATE))
+		OVER (PARTITION BY prd_key ORDER BY TRY_CAST(prd_start_dt AS DATE))
+		),
+		103)
+		AS ProductEndDate
+
+
+FROM Staging.Products;
+
+
+SELECT *
+FROM Core.Products;
+
+
+
+-- Quality Checks After inserting data
+-- Check for Nulls or Duplicates 
+SELECT 
+ProductKey,
+COUNT(*)
+FROM Core.Products
+GROUP BY ProductKey
+HAVING COUNT(*) > 1 OR ProductKey IS NULL
+
+-- Check for unwanted spaces
+SELECT ProductKey 
+FROM Core.Products
+WHERE ProductKey != TRIM(ProductKey)
+
+--Check for Invalid Date Orders
+SELECT *
+FROM Core.Products
+WHERE ProductEndDate < ProductStartDate
+
+
+
+
