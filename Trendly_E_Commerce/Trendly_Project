@@ -1,1 +1,677 @@
+/*
+Creating DB
+Creating schemas Staging, Core, Reporting
+*/
+-- Make the table empty and load using truncate
+USE TrendlyDB
+GO
+
+
+CREATE SCHEMA Staging; 
+GO 
+
+CREATE SCHEMA Core; 
+GO 
+
+CREATE SCHEMA Reporting; 
+GO
+
+
+---===================== Creating Tables in TrendlyDB - Staging.Tables(Customers, Products, Sales) RAW data =============
+--TSQL logic
+
+IF OBJECT_ID ('Staging.Customers','U') IS NOT NULL
+	DROP TABLE Staging.Customers;
+
+
+CREATE TABLE Staging.Customers(
+
+	cst_id NVARCHAR(50),
+	cst_key	NVARCHAR(50),
+	cst_firstname	NVARCHAR(50), 
+	cst_lastname NVARCHAR(50),
+	cst_marital_status NVARCHAR(50),
+	cst_gndr NVARCHAR(50),
+	cst_create_date NVARCHAR(50)
+);
+
+
+
+IF OBJECT_ID ('Staging.Products','U') IS NOT NULL
+	DROP TABLE Staging.Products;
+
+CREATE TABLE Staging.Products(
+
+	prd_id INT,
+	prd_key	NVARCHAR(50),
+	prd_nm	NVARCHAR(50),
+	prd_cost NVARCHAR(50),
+	prd_line NVARCHAR(50),
+	prd_start_dt NVARCHAR(50),
+	prd_end_dt NVARCHAR(50)
+);
+
+
+
+
+IF OBJECT_ID ('Staging.Sales','U') IS NOT NULL
+	DROP TABLE Staging.Sales;
+
+
+CREATE TABLE Staging.Sales(
+    sls_OrderID NVARCHAR(50),
+    sls_prd_key NVARCHAR(50),
+    sls_cust_id NVARCHAR(50),
+    sls_order_dt NVARCHAR(50),
+    sls_ship_dt NVARCHAR(50),
+    sls_due_dt NVARCHAR(50),
+	sls_sales NVARCHAR(50),
+    sls_quantity NVARCHAR(50),
+    sls_price NVARCHAR(50)
+);
+GO
+
+
+---===================== Creating Core.Tables in TrendlyDB(Customers, Products, Sales) Cleaned data =============
+
+---=== Core.Customers TABLE ===
+
+IF OBJECT_ID ('Core.Customers','U') IS NOT NULL
+	DROP TABLE Core.Customers;
+
+
+CREATE TABLE Core.Customers(
+
+	CustomerID INT PRIMARY KEY,
+	CustomerKey	NVARCHAR(50),
+	CustomerFirstName VARCHAR(50),
+	CustomerLastName VARCHAR(50),
+	CustomerMaritalStatus VARCHAR(50),
+	CustomerGender VARCHAR(50),
+	CustomerCreateDate DATE
+);
+
+
+---=== Core.Products TABLE ===--
+
+IF OBJECT_ID ('Core.Products','U') IS NOT NULL
+	DROP TABLE Core.Products;
+
+CREATE TABLE Core.Products(
+
+	ProductID INT PRIMARY KEY,
+	ProductKey	NVARCHAR(50),
+	ProductName VARCHAR(50),
+	ProductCost Decimal(10,2),
+	ProductCategory VARCHAR(50),
+	ProductStartDate DATE,
+	ProductEndDate DATE
+);
+
+
+---=== Core.Sales TABLE ===--
+
+IF OBJECT_ID ('Core.Sales','U') IS NOT NULL
+	DROP TABLE Core.Sales;
+
+CREATE TABLE Core.Sales(
+    OrderNumber  VARCHAR(50),
+    ProductID NVARCHAR(50),
+    CustomerID INT,
+    OrderDate DATE,
+    ShipDate DATE,
+    DueDate DATE,
+    Sales Decimal(10,2),
+    Quantity INT,
+    Price Decimal(10,2)
+);
+GO
+
+---------------------------------- Bulk insert SALES data ----------------------------
+
+/*If we run Bulk insert again we will get duplicate data, so to Make table empty and load
+Truncate - Deleted all rows from a table, resetting to an empty state
+
+*/
+-- Creating stored procedure for Staging_Layer --
+/*
+--TRY,CATCH--
+Ensures Error handling, data integrity, issues logging for easier debugging 
+SQL runs TRY block if it fails, it runs CATCH block to handle errors 
+
+--Track ETL Duration--
+Helps to identify bottlenecks, optimize performance, monitor trends, detect issues
+
+*/
+
+
+------- Stored Prcedure Start
+--------EXEC Staging.load_Staging 
+
+CREATE OR ALTER PROCEDURE Staging.load_Staging AS
+BEGIN
+	DECLARE @start_time DATETIME, @end_time DATETIME;
+	BEGIN TRY
+			PRINT '================================================'
+			PRINT 'Loading Staging Layer'
+			PRINT '================================================'
+
+
+			PRINT '================================================'
+			PRINT 'Loading Sales Table'
+			PRINT '================================================'
+
+
+			SET @start_time = GETDATE();
+			PRINT 'Truncating Table:Staging.Sales'
+			TRUNCATE TABLE Staging.Sales
+
+  			BULK INSERT Staging.Sales
+			FROM 'D:\Euron\Trendly_CSV\Sales.CSV'
+			WITH (
+				FIRSTROW = 2,
+				FIELDTERMINATOR = ',',
+				TABLOCK
+			);
+			SET @end_time = GETDATE();
+			PRINT '>>Load Duration: ' + CAST(DATEDIFF(second, @start_time, @end_time) AS NVARCHAR) + 'seconds'
+
+
+-------------- -----------  Bulk insert PRODUCTS data  -----------------
+
+			/*If we run Bulk insert again we will get duplicate data, so to Make table empty and load
+			Truncate - Deleted all rows from a table, resetting to an empty state
+
+			*/
+
+		
+
+			PRINT '================================================'
+			PRINT 'Loading Products Table'
+			PRINT '================================================'
+
+			SET @start_time = GETDATE();
+
+			PRINT 'Truncating Table:Staging.Products'
+			TRUNCATE TABLE Staging.Products
+
+			PRINT 'Inserting Data into: Staging.Products'
+			BULK INSERT Staging.Products
+			FROM 'D:\Euron\Trendly_CSV\Products.CSV'
+			WITH (
+				FIRSTROW = 2,
+				FIELDTERMINATOR = ',',
+				TABLOCK
+			);
+			SET @end_time = GETDATE();
+			PRINT '>>Load Duration: ' + CAST(DATEDIFF(second, @start_time, @end_time) AS NVARCHAR) + 'seconds'
+
+
+			---------------------------   Bulk insert Customers data  -----------------
+			/*If we run Bulk insert again we will get duplicate data, so to Make table empty and load
+			Truncate - Deleted all rows from a table, resetting to an empty state
+
+			*/
+			PRINT '================================================'
+			PRINT 'Loading Customers Table'
+			PRINT '================================================'
+
+
+			SET @start_time = GETDATE();
+			PRINT 'Truncating Table:Staging.Customers'
+			TRUNCATE TABLE Staging.Customers
+
+
+			PRINT 'Inserting Data into: Staging.Customers'
+			BULK INSERT Staging.Customers
+			FROM 'D:\Euron\Trendly_CSV\Customers.CSV'
+			WITH (
+				FIRSTROW = 2,
+				FIELDTERMINATOR = ',',
+				TABLOCK
+			);
+
+
+			SET @end_time = GETDATE();
+			PRINT '>>Load Duration: ' + CAST(DATEDIFF(second, @start_time, @end_time) AS NVARCHAR) + 'seconds'
+
+
+
+
+	END TRY
+	BEGIN CATCH
+		PRINT '===================================='
+		PRINT 'ERROR OCUURED DURING lOADING STAGING LAYER'
+		PRINT 'Error Message' + ERROR_MESSAGE();
+		PRINT 'Error Message' + CAST(ERROR_NUMBER() AS NVARCHAR);
+		PRINT 'Error Message' + CAST(ERROR_STATE() AS NVARCHAR);
+		PRINT '===================================='
+
+	END CATCH
+END
+
+
+ EXEC Staging.load_Staging 
+
+----------------- Stored Prcedure END 
+----------------  EXEC Staging.load_Staging 
+
+/*
+Checking for NULL or Duplicates,Validating ROW count
+Primary should be unique
+*/
+
+
+SELECT 
+cst_id, 
+COUNT(*) 
+FROM Staging.Customers
+GROUP BY cst_id
+HAVING COUNT(*) > 1 OR cst_id IS NULL
+
+
+
+----Quality check & checking data not shifted and is in correct column
+----Validating ROW count
+SELECT * FROM Staging.Products;
+
+SELECT COUNT(*) FROM Staging.Products;
+
+----Quality check & checking data not shifted and is in correct column
+----Validating ROW count
+SELECT * FROM Staging.Sales;
+SELECT COUNT(*) FROM Staging.Sales;
+
+ /* 
+ Checking for unwanted spaces
+ If Original Value Not Equal to same value after trimming,
+ Means there are spaces
+ */
+
+SELECT cst_firstname
+FROM Staging.Customers
+WHERE cst_firstname != TRIM(cst_firstname)
+
+SELECT cst_lastname
+FROM Staging.Customers
+WHERE cst_lastname != TRIM(cst_lastname)
+
+SELECT cst_marital_status
+FROM Staging.Customers
+WHERE cst_marital_status != TRIM(cst_marital_status)
+
+SELECT cst_gndr
+FROM Staging.Customers
+WHERE cst_gndr != TRIM(cst_gndr)
+
+---========================================== CORE ============================================
+
+----------------- Stored Prcedure Start 
+----------------  EXEC Core.load_Core
+
+---===============================  INSERT DATA FROM STAGING.Customers TO CORE.Customers  ====================
+
+CREATE OR ALTER PROCEDURE Core.load_Core AS
+BEGIN
+    DECLARE @start_time DATETIME, @end_time DATETIME;
+    BEGIN TRY
+            PRINT '================================================'
+			PRINT 'Loading Core Layer'
+			PRINT '================================================'
+
+
+			PRINT '================================================'
+			PRINT 'Loading Customers Table'
+			PRINT '================================================'
+
+            
+			SET @start_time = GETDATE();
+			PRINT 'Truncating Table:Core.Customers'
+			TRUNCATE TABLE Core.Customers
+
+
+
+
+            INSERT INTO Core.Customers
+                (
+                    CustomerID,
+                    CustomerKey,
+                    CustomerFirstName,
+                    CustomerLastName,
+                    CustomerMaritalStatus,
+                    CustomerGender,
+                    CustomerCreateDate
+                )
+
+
+        --Row_Number : Assign a uninque number to each row in a resultset, based on defined order
+        -- Checking unwanted spaces and TRI M 
+            SELECT 
+                    TRY_CAST(cst_id AS INT)     AS CustomerID,
+                    cst_key                     AS CustomerKey,
+                    TRIM(cst_firstname)         AS CustomerFirstName,
+                    TRIM(cst_lastname)          AS CustomerLastName,
+    
+    
+                    CASE 
+                        WHEN UPPER(TRIM(cst_marital_status)) = 'S' THEN 'Single'
+                        WHEN UPPER(TRIM(cst_marital_status)) = 'M' THEN 'Married'
+                        ELSE 'N/A'
+                    END                         AS CustomerMaritalStatus,
+
+
+                    CASE 
+                        WHEN UPPER(TRIM(cst_gndr)) = 'F' THEN 'FEMALE'
+                        WHEN UPPER(TRIM(cst_gndr)) = 'M' THEN 'MALE'
+                        ELSE 'N/A'
+                    END                         AS CustomerGender,
+
+
+                    TRY_CAST(cst_create_date AS DATE) AS CustomerCreateDate
+            FROM
+            (
+                SELECT
+                *,
+                ROW_NUMBER() OVER (PARTITION BY cst_id ORDER BY cst_create_date DESC) as flag_last
+                FROM Staging.Customers
+            ) t
+
+            WHERE flag_last = 1
+            AND TRY_CAST(cst_id AS INT) IS NOT NULL       -- prevents PK NULL error
+
+            SET @end_time = GETDATE();
+		    PRINT '>>Load Duration: ' + CAST(DATEDIFF(second, @start_time, @end_time) AS NVARCHAR) + 'seconds'
+
+
+
+
+
+---=================================== INSERT DATA FROM STAGING.Products TO CORE.Products  ====================
+
+
+            PRINT '================================================'
+			PRINT 'Loading Products Table'
+			PRINT '================================================'
+
+			SET @start_time = GETDATE();
+
+			PRINT 'Truncating Table:Core.Products'
+			TRUNCATE TABLE Core.Products
+
+            INSERT INTO Core.Products(
+	            ProductID, 
+	            ProductKey,	
+	            ProductName, 
+	            ProductCost,
+	            ProductCategory, 
+	            ProductStartDate, 
+	            ProductEndDate 
+            )
+
+            SELECT 
+
+	            TRY_CAST(prd_id AS INT) AS ProductID,
+
+	            SUBSTRING(prd_key, 7, LEN(prd_key)) AS ProductKey,
+
+	            prd_nm AS ProductName,	
+
+	            TRY_CAST(NULLIF(prd_cost, '') AS DECIMAL(10,2)) AS ProdutCost,
+	
+
+	            CASE WHEN UPPER(TRIM(prd_line)) = 'M' THEN 'Mountain'
+		             WHEN UPPER(TRIM(prd_line)) = 'R' THEN 'Road'
+		             WHEN UPPER(TRIM(prd_line)) = 'S' THEN 'Other Sales'
+		             WHEN UPPER(TRIM(prd_line)) = 'T' THEN 'Touring'
+		             ELSE 'n/a'
+	            END AS ProductCategory,
+
+            ---Formatted start_dt
+	            CONVERT(VARCHAR(10), TRY_CAST(prd_start_dt AS DATE), 103) AS ProductStartDate,
+	
+            ---Formatted end_dt
+	            CONVERT(
+	            VARCHAR(10), 
+	            DATEADD(
+		            DAY,
+		            -1,
+	            LEAD(TRY_CAST(prd_start_dt AS DATE))
+		            OVER (PARTITION BY prd_key ORDER BY TRY_CAST(prd_start_dt AS DATE))
+		            ),
+		            103)
+		            AS ProductEndDate
+
+
+            FROM Staging.Products;
+
+            SET @end_time = GETDATE();
+			PRINT '>>Load Duration: ' + CAST(DATEDIFF(second, @start_time, @end_time) AS NVARCHAR) + 'seconds'
+
+
+/*
+-- Quality Checks After inserting data
+-- Check for Nulls or Duplicates 
+SELECT 
+ProductKey,
+COUNT(*)
+FROM Core.Products
+GROUP BY ProductKey
+HAVING COUNT(*) > 1 OR ProductKey IS NULL
+
+-- Check for unwanted spaces
+SELECT ProductKey 
+FROM Core.Products
+WHERE ProductKey != TRIM(ProductKey)
+
+--Check for Invalid Date Orders
+SELECT *
+FROM Core.Products
+WHERE ProductEndDate < ProductStartDate
+*/
+
+
+---======================== INSERT DATA FROM STAGING.Sales TO CORE.Sales ======================
+            
+            PRINT '================================================'
+			PRINT 'Loading Core.Sales Table'
+			PRINT '================================================'
+
+
+			DECLARE @start_time DATETIME;
+			DECLARE @end_time   DATETIME;
+            
+			BEGIN TRY
+
+			SET @start_time = GETDATE();
+			PRINT 'Truncating Table:Core.Sales'
+			TRUNCATE TABLE Core.Sales
+
+            INSERT INTO Core.Sales (
+                OrderNumber,
+                ProductID,
+                CustomerID,
+                OrderDate,
+                ShipDate,
+                DueDate,
+                Sales,
+                Quantity,
+                Price
+            )
+            SELECT
+                TRY_CAST(sls_OrderID AS VARCHAR(50))          AS OrderNumber,
+                TRY_CAST(sls_prd_key AS NVARCHAR(50))         AS ProductID,
+                TRY_CAST(sls_cust_id AS INT)                  AS CustomerID,
+
+                -- Order Date
+                CASE 
+                    WHEN sls_order_dt = 0 OR LEN(sls_order_dt) <> 8 THEN NULL
+                    ELSE CONVERT(DATE, CONVERT(VARCHAR(8), sls_order_dt))
+                END AS OrderDate,
+
+                -- Ship Date
+                CASE 
+                    WHEN sls_ship_dt = 0 OR LEN(sls_ship_dt) <> 8 THEN NULL
+                    ELSE CONVERT(DATE, CONVERT(VARCHAR(8), sls_ship_dt))
+                END AS ShipDate,
+
+                -- Due Date
+                CASE 
+                    WHEN sls_due_dt = 0 OR LEN(sls_due_dt) <> 8 THEN NULL
+                    ELSE CONVERT(DATE, CONVERT(VARCHAR(8), sls_due_dt))
+                END AS DueDate,
+
+                -- Sales (recalculate if missing or incorrect)
+                CASE 
+                    WHEN TRY_CAST(sls_sales AS DECIMAL(18,2)) IS NULL
+                      OR TRY_CAST(sls_sales AS DECIMAL(18,2)) <= 0
+                      OR TRY_CAST(sls_sales AS DECIMAL(18,2)) 
+                         <> TRY_CAST(sls_quantity AS INT) * ABS(TRY_CAST(sls_price AS DECIMAL(18,2)))
+                    THEN 
+                        TRY_CAST(sls_quantity AS INT) * ABS(TRY_CAST(sls_price AS DECIMAL(18,2)))
+                    ELSE 
+                        TRY_CAST(sls_sales AS DECIMAL(18,2))
+                END AS Sales,
+
+                -- Quantity
+                TRY_CAST(sls_quantity AS INT) AS Quantity,
+
+                -- Price (derive if invalid)
+                CASE 
+                    WHEN TRY_CAST(sls_price AS DECIMAL(18,2)) IS NULL
+                      OR TRY_CAST(sls_price AS DECIMAL(18,2)) <= 0
+                    THEN 
+                        TRY_CAST(sls_sales AS DECIMAL(18,2)) 
+                        / NULLIF(TRY_CAST(sls_quantity AS INT), 0)
+                    ELSE 
+                        TRY_CAST(sls_price AS DECIMAL(18,2))
+                END AS Price
+
+            FROM Staging.Sales;
+
+
+            SET @end_time = GETDATE();
+			PRINT '>>Load Duration: ' + CAST(DATEDIFF(second, @start_time, @end_time) AS NVARCHAR) + 'seconds'
+
+
+
+	END TRY
+
+	BEGIN CATCH
+		PRINT '===================================='
+		PRINT 'ERROR OCUURED DURING lOADING CORE LAYER'
+		PRINT 'Error Message' + ERROR_MESSAGE();
+		PRINT 'Error Message' + CAST(ERROR_NUMBER() AS NVARCHAR);
+		PRINT 'Error Message' + CAST(ERROR_STATE() AS NVARCHAR);
+		PRINT '===================================='
+
+    END CATCH
+	
+END
+
+
+EXEC Core.load_Core
+
+----------------- Stored Prcedure END 
+----------------- EXEC Core.load_Core
+
+---==========================================
+---Quality check
+
+SELECT DISTINCT
+Sales,
+Quantity,
+price
+FROM Core.Sales
+WHERE Sales != Quantity * price
+OR Sales IS NULL 
+OR Quantity IS NULL
+OR price IS NULL
+
+OR Sales <= 0 OR Quantity <= 0 OR price <= 0
+ORDER BY Sales,Quantity,price 
+
+SELECT * 
+FROM Core.Sales
+
+
+
+---============================ Reporting Layer ====================
+
+---==========================================
+-- Create Dimension: Reporting.dim_customers
+-- ==========================================
+
+
+IF OBJECT_ID('Reporting.dim_Customers', 'V') IS NOT NULL
+    DROP VIEW Reporting.dim_Customers;
+GO
+
+CREATE VIEW Reporting.dim_Customers
+AS
+SELECT
+    CustomerID,  
+    CustomerKey,                              
+    CustomerFirstName,                        
+    CustomerLastName,                         
+    CustomerMaritalStatus,                    
+    CustomerGender,                           
+    CustomerCreateDate                       
+FROM Core.Customers c;
+GO
+
+
+---=========================================
+-- Create Dimension: Reporting.dim_Products
+-- ==========================================
+
+IF OBJECT_ID('Reporting.dim_Products', 'V') IS NOT NULL
+    DROP VIEW Reporting.dim_Products;
+GO
+
+CREATE VIEW Reporting.dim_Products
+AS
+SELECT
+    ROW_NUMBER() OVER (ORDER BY ProductKey) AS product_key,  
+    ProductKey AS ProductID,                              
+    ProductName,
+    ProductCost,
+    ProductCategory AS Category,                         
+    ProductStartDate,                    
+    ProductEndDate                                                       
+FROM Core.Products p;
+GO
+
+
+---==========================================
+-- Create Dimension: Reporting.fact_Sales
+-- ==========================================
+IF OBJECT_ID('Reporting.fact_Sales', 'V') IS NOT NULL
+    DROP VIEW Reporting.fact_Sales;
+GO
+
+CREATE VIEW Reporting.fact_Sales
+AS
+SELECT
+    s.OrderNumber       AS OrderID,
+    s.ProductID,
+    s.Sales             AS Amount,
+    s.CustomerID,
+    s.OrderDate,
+    s.ShipDate,
+    s.DueDate,
+    s.Quantity,
+    s.Price
+
+FROM Core.Sales s
+LEFT JOIN Reporting.dim_products p
+    ON s.ProductID = p.ProductID
+LEFT JOIN Reporting.dim_customers c
+    ON s.CustomerID = c.CustomerID;
+GO
+
+
+
+
+
+
 
